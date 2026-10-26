@@ -19,6 +19,7 @@ type Player = {
   scores: string[];
   roundRatings?: (string | number)[];
   photoUrl?: string;
+  playerRating?: string;
 };
 
 type Division = {
@@ -129,6 +130,17 @@ const formatScore = (value: string | number) => {
   const diff = Number(raw) - 54;
   return `${raw} (${diff === 0 ? 'E' : diff > 0 ? `+${diff}` : diff})`;
 };
+
+function RatingMark({ value }: { value: string | number }) {
+  return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
+    <span aria-label="PDGA rating" title="PDGA rating" style={{
+      display: 'inline-grid', placeItems: 'center', width: 17, height: 17,
+      border: '1.5px solid currentColor', borderRadius: 3,
+      transform: 'rotate(45deg)', fontSize: 11, fontWeight: 800
+    }}><span style={{ transform: 'rotate(-45deg)' }}>R</span></span>
+    {value}
+  </span>;
+}
 
 const money = (n: number) =>
   new Intl.NumberFormat('en-US', {
@@ -455,7 +467,7 @@ function App() {
                     )}
 
                     <span className="playerName">
-                      <b>{p.name}</b>
+                      <b>{p.name}{p.playerRating && <> · <RatingMark value={p.playerRating} /></>}</b>
                       <small>
                         {p.division} · {p.rounds} rounds ·{' '}
                         {p.qualified === 'YES'
@@ -498,7 +510,7 @@ function App() {
                               return (
                                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                                   <span>W{i + 1}: {formatScore(score)}</span>
-                                  <span>{rating ? `${rating} rated` : 'Rating pending'}</span>
+                                  <span>{rating ? <RatingMark value={rating} /> : 'Rating pending'}</span>
                                 </div>
                               );
                             })}
