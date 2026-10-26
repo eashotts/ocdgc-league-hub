@@ -45,6 +45,24 @@ jobs:
             echo "No EXPORT_URL configured; using placeholder data."
           fi
 
+     
+      - name: Check exported data
+        run: |
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const data = JSON.parse(
+              fs.readFileSync("public/data/league.json", "utf8")
+            );
+            console.log("Event ID:", data.eventId || "missing");
+            console.log("Division count:", data.divisions?.length ?? "missing");
+            console.log(
+              "Players per division:",
+              data.divisions?.map(d => d.players?.length ?? 0)
+            );
+            console.log("Finance included:", !!data.finance);
+            console.log("Exporter error:", data.error ? "yes" : "no");
+          '
+
       - name: Validate league data
         run: node scripts/validate.mjs
 
