@@ -63,24 +63,35 @@ try {
 } catch (e) {
   console.warn('PDGA event ratings unavailable:', e.message);
 }
+// Profile photos can be hosted on PDGA's image CDN and may use lazy-loaded
+// srcset rather than an ordinary img src. Inspect both profile and event HTML.
+const imageCandidate = ($, element, player) => {
+  const node = $(element);
+  const alt = clean(node.attr('alt')).toLowerCase();
+  const cls = String(node.attr('class') || '').toLowerCase();
+  const parent = String(node.parent().attr('class') || '').toLowerCase();
+  const source = [node.attr('data-src'), node.attr('src'), node.attr('data-original'),
+    node.attr('srcset')?.split(',').at(-1)?.trim().split(/\\s+/)[0]].filter(Boolean);
+  const relevant = /user.picture|profile.picture|player.photo|avatar|headshot|field--name-user-picture/.test(
+    [alt, cls, parent, ...source].join(' ').toLowerCase()
+  ) || (alt.includes(clean(player.name).toLowerCase()) && alt.length > 2);
+  if (!relevant) return '';
+  for (const raw of source) {
+    try {
+      const url = new URL(raw, base);
+      if (url.protocol !== 'https:' || /default|placeholder|anonymous|silhouette|no[-_]photo/i.test(url.href)) continue;
+      if (!/pdga\\.com|pdga\\.com\\.s3|cloudfront\\.net/.test(url.hostname)) continue;
+      return url.href;
+    } catch {}
+  }
+  return '';
+};
 let photosFound = 0;
 for (const [id, player] of byPdga) {
   try {
     const $ = await html(`${base}/player/${id}`);
-    const candidates = $('img').toArray().filter(el => {
-      const alt = clean($(el).attr('alt')).toLowerCase();
-      const src = String($(el).attr('src') || $(el).attr('data-src') || '');
-      const klass = String($(el).attr('class') || '').toLowerCase();
-      return (alt.includes('picture') || klass.includes('user-picture') || src.includes('/pictures/')) &&
-        !/default|placeholder|anonymous|silhouette|no[-_]photo/i.test(src);
-    });
-    for (const el of candidates) {
-      const raw = $(el).attr('src') || $(el).attr('data-src') || '';
-      let url = '';
-      try {
-        const parsed = new URL(raw, base);
-        if (parsed.protocol === 'https:') url = parsed.href;
-      } catch {}
+    for (const element of $('img').toArray()) {
+      const url = imageCandidate($, element, player);
       if (!url) continue;
       player.photoUrl = url;
       photosFound++;
