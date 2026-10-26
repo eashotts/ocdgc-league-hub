@@ -496,10 +496,6 @@ function App() {
 
                   {selected === `${p.division}-${i}` && (
                     <div className="details">
-                      <p>
-                        PDGA #: {p.pdga || 'None'}
-                      </p>
-
                       <div style={{ margin: '12px 0' }}>
                         <b>Weekly Scores:</b>
                         {p.scores.some(s => String(s || '').trim()) ? (
