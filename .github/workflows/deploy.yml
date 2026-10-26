@@ -31,7 +31,7 @@ jobs:
           node-version: "22"
 
       - name: Install dependencies
-        run: npm install
+        run: npm install && npm install --no-save cheerio
 
       - name: Fetch league data
         env:
@@ -62,6 +62,9 @@ jobs:
             console.log("Finance included:", !!data.finance);
             console.log("Exporter error:", data.error ? "yes" : "no");
           '
+
+      - name: Enrich PDGA ratings and player photos
+        run: node scripts/enrich-pdga.mjs
 
       - name: Validate league data
         run: node scripts/validate.mjs
