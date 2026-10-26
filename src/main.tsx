@@ -17,6 +17,8 @@ type Player = {
   highest: string;
   rating: string;
   scores: string[];
+  roundRatings?: (string | number)[];
+  photoUrl?: string;
 };
 
 type Division = {
@@ -121,6 +123,13 @@ const weeklyLayouts: Layout[] = [
 const isShortDivision = (name: string) =>
   /^(RAG|RAF|RAE)\b/.test(name);
 
+const formatScore = (value: string | number) => {
+  const raw = String(value ?? '').trim();
+  if (!/^\d+$/.test(raw)) return raw || '—';
+  const diff = Number(raw) - 54;
+  return `${raw} (${diff === 0 ? 'E' : diff > 0 ? `+${diff}` : diff})`;
+};
+
 const money = (n: number) =>
   new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -196,7 +205,7 @@ function App() {
                 <tr key={p.place}>
                   <td><b>{p.place === 1 ? '1st cash' : '2nd cash'}</b></td>
                   <td>{p.player || (p.tieSituation?.toLowerCase().includes('playoff') ? 'Awaiting playoff result' : 'Pending')}</td>
-                  <td>{p.player ? (p.score || '—') : '—'}</td>
+                  <td>{p.player ? formatScore(p.score) : '—'}</td>
                   <td><b>{p.player ? money(Number(p.payout) || 0) : 'Pending'}</b></td>
                 </tr>
               ))}</tbody>
@@ -431,6 +440,16 @@ function App() {
                       #{p.place}
                     </span>
 
+                    {p.photoUrl && (
+                      <img
+                        src={p.photoUrl}
+                        alt={`${p.name} profile`}
+                        loading="lazy"
+                        style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8, flexShrink: 0 }}
+                        onError={e => { e.currentTarget.style.display = 'none'; }}
+                      />
+                    )}
+
                     <span className="playerName">
                       <b>{p.name}</b>
                       <small>
@@ -465,16 +484,23 @@ function App() {
                         PDGA #: {p.pdga || 'None'}
                       </p>
 
-                      <p>
-                        Weekly scores:{' '}
-                        {p.scores
-                          .map((s, i) =>
-                            s ? `W${i + 1}: ${s}` : null
-                          )
-                          .filter(Boolean)
-                          .join(' · ') ||
-                          'No scores recorded'}
-                      </p>
+                      <div style={{ margin: '12px 0' }}>
+                        <b>Weekly Scores:</b>
+                        {p.scores.some(s => String(s || '').trim()) ? (
+                          <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
+                            {p.scores.map((score, i) => {
+                              if (!String(score || '').trim()) return null;
+                              const rating = p.roundRatings?.[i];
+                              return (
+                                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                                  <span>W{i + 1}: {formatScore(score)}</span>
+                                  <span>{rating ? `${rating} rated` : 'Rating pending'}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : <p>No scores recorded</p>}
+                      </div>
 
                       {p.pdga && (
                         <a
