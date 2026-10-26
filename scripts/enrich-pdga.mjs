@@ -6,12 +6,12 @@ const data = JSON.parse(fs.readFileSync(file, 'utf8'));
 const eventId = String(data.eventId || '107753');
 const base = 'https://www.pdga.com';
 const headers = { 'User-Agent': 'Mozilla/5.0 (compatible; OCDGCLeagueHub/1.0)', Accept: 'text/html' };
-const clean = s => String(s || '').replace(/\\s+/g, ' ').trim();
-const digits = s => /^\\d+$/.test(clean(s));
+const clean = s => String(s || '').replace(/\s+/g, ' ').trim();
+const digits = s => /^\d+$/.test(clean(s));
 const safeUrl = url => {
   try {
     const u = new URL(url, base);
-    return u.protocol === 'https:' && /(^|\\.)pdga\\.com$/.test(u.hostname) ? u.href : '';
+    return u.protocol === 'https:' && /(^|\.)pdga\.com$/.test(u.hostname) ? u.href : '';
   } catch { return ''; }
 };
 async function html(url) {
@@ -46,7 +46,7 @@ try {
       // A player's current PDGA rating follows the PDGA number when present.
       if (start < cells.length && (digits(cells[start]) || cells[start] === '') && cells.length - start >= 3) start++;
       // Some event tables have a Par column before the round pairs.
-      if (/^[+-]\\d+$|^E$/.test(cells[start] || '')) start++;
+      if (/^[+-]\d+$|^E$/.test(cells[start] || '')) start++;
       const ratings = Array(10).fill('');
       for (let week = 0; week < 10; week++) {
         const score = cells[start + week * 2];
@@ -83,5 +83,5 @@ for (const [id, player] of byPdga) {
     console.warn(`PDGA profile ${id} unavailable: ${e.message}`);
   }
 }
-fs.writeFileSync(file, JSON.stringify(data, null, 2) + '\\n');
+fs.writeFileSync(file, JSON.stringify(data, null, 2) + '\n');
 console.log(`PDGA profile photos matched: ${photosFound}`);
