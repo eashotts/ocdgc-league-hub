@@ -355,6 +355,16 @@ function App() {
               at its original location.
             </p>
 
+            <div className="notice" style={{ marginTop: 22, marginBottom: 20 }}>
+              <p><b>WAIT TO LOG-IN TO YOUR SCORECARD UNTIL EVENT DIRECTOR GIVES THE GREEN LIGHT!</b></p>
+              <p>
+                <b>PDGA Login Code: FERRY</b> ·{' '}
+                <a href="https://www.pdga.com/apps/tournament/score/login" target="_blank" rel="noreferrer">
+                  PDGA Live Scoring Login ↗
+                </a>
+              </p>
+            </div>
+
             <h3>10-Week Layout Schedule</h3>
 
             <p className="muted">
@@ -400,17 +410,7 @@ function App() {
               </table>
             </div>
 
-            <p>
-              <a
-                href={`https://www.pdga.com/tour/event/${
-                  data?.eventId || '107753'
-                }`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Official PDGA event details ↗
-              </a>
-            </p>
+
           </section>
         )}
 
