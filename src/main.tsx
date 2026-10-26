@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
-  Trophy, Wallet, Home, Users, CalendarDays, ExternalLink
+  Trophy, Wallet, Home, CalendarDays, ExternalLink
 } from 'lucide-react';
 import './style.css';
 
@@ -678,115 +678,6 @@ function App() {
           </>
         )}
 
-        {tab === 'League' && (
-          <section className="card">
-            <h2>League Information</h2>
-
-            <p>
-              OCDGC Ferry Sunday Singles II ·
-              Ferry Park Disc Golf Course ·
-              Fort Walton Beach, Florida
-            </p>
-
-            <p>
-              <b>
-                Sundays, September 6 – November 22, 2026
-              </b>
-            </p>
-
-            <p>
-              Check-in: 11:15–11:30 AM ·
-              Tee time: 11:30 AM
-            </p>
-
-            <p>
-              PDGA membership not required.
-              All skill levels welcome.
-            </p>
-
-            <p>
-              <a
-                href="https://forms.gle/xToUSkTCjQaai8Uc9"
-                target="_blank"
-                rel="noreferrer"
-              >
-                <b>Weekly League Sign-In ↗</b>
-              </a>
-            </p>
-
-            <h3>Course & Basket Updates</h3>
-
-            <p>
-              <b>Hole 8:</b> A temporary basket
-              is in use, with its location changing
-              from week to week. Confirm its
-              placement before playing.
-            </p>
-
-            <p>
-              <b>Hole 17:</b> The original white
-              basket is repaired and back in play
-              at its original location.
-            </p>
-
-            <h3>10-Week Layout Schedule</h3>
-
-            <p className="muted">
-              Shorts divisions: RAG, RAF, RAE.
-              Longs divisions: RAD, RAH, RPA.
-              In Weeks 4, 8, and 9, both groups
-              use the same tees and pins, but
-              the Longs divisions play with
-              additional sidewalk hazards.
-            </p>
-
-            <div className="overflow">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Week</th>
-                    <th>Shorts</th>
-                    <th>Longs</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {weeklyLayouts.map((w, i) => (
-                    <tr key={i}>
-                      <td>
-                        <b>{i + 1}</b>
-                        <small> · {w.date}</small>
-                      </td>
-
-                      <td>{w.short}</td>
-
-                      <td>
-                        {w.long}
-                        {w.hazards && (
-                          <div>
-                            <b>+ Sidewalk hazards</b>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <p>
-              <a
-                href={`https://www.pdga.com/tour/event/${
-                  data?.eventId || '107753'
-                }`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Official PDGA event details ↗
-              </a>
-            </p>
-          </section>
-        )}
       </main>
 
       <nav className="bottomNav">
@@ -794,8 +685,7 @@ function App() {
           { name: 'Home', icon: Home },
           { name: 'Standings', icon: Trophy },
           { name: 'Rounds', icon: CalendarDays },
-          { name: 'Finances', icon: Wallet },
-          { name: 'League', icon: Users }
+          { name: 'Finances', icon: Wallet }
         ].map(({ name, icon: Icon }) => (
           <button
             key={name}
