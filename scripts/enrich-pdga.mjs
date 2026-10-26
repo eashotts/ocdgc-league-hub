@@ -63,42 +63,62 @@ try {
 } catch (e) {
   console.warn('PDGA event ratings unavailable:', e.message);
 }
-// Profile photos can be hosted on PDGA's image CDN and may use lazy-loaded
-// srcset rather than an ordinary img src. Inspect both profile and event HTML.
-const imageCandidate = ($, element, player) => {
-  const node = $(element);
-  const alt = clean(node.attr('alt')).toLowerCase();
-  const cls = String(node.attr('class') || '').toLowerCase();
-  const parent = String(node.parent().attr('class') || '').toLowerCase();
-  const source = [node.attr('data-src'), node.attr('src'), node.attr('data-original'),
-    node.attr('srcset')?.split(',').at(-1)?.trim().split(/\\s+/)[0]].filter(Boolean);
-  const relevant = /user.picture|profile.picture|player.photo|avatar|headshot|field--name-user-picture/.test(
-    [alt, cls, parent, ...source].join(' ').toLowerCase()
-  ) || (alt.includes(clean(player.name).toLowerCase()) && alt.length > 2);
-  if (!relevant) return '';
-  for (const raw of source) {
-    try {
-      const url = new URL(raw, base);
-      if (url.protocol !== 'https:' || /default|placeholder|anonymous|silhouette|no[-_]photo/i.test(url.href)) continue;
-      if (!/pdga\\.com|pdga\\.com\\.s3|cloudfront\\.net/.test(url.hostname)) continue;
-      return url.href;
-    } catch {}
-  }
-  return '';
+// Download profile photos into the deployed site rather than hotlinking PDGA.
+// Some PDGA image URLs are HTTP, lazy-loaded, or served from an image CDN.
+const imageSources = ($, el) => {
+  const node = $(el);
+  return [node.attr('data-src'), node.attr('data-original'), node.attr('src'),
+    ...String(node.attr('srcset') || '').split(',').map(v => v.trim().split(/\s+/)[0])]
+    .filter(Boolean).filter(v => !v.startsWith('data:'));
 };
+const imageUrl = raw => {
+  try {
+    const url = new URL(raw, base);
+    if (url.protocol === 'http:') url.protocol = 'https:';
+    return url.protocol === 'https:' ? url.href : '';
+  } catch { return ''; }
+};
+const placeholder = url => /default|placeholder|anonymous|silhouette|no[-_]photo|blank|logo/i.test(url);
 let photosFound = 0;
+fs.mkdirSync('public/player-photos', { recursive: true });
 for (const [id, player] of byPdga) {
   try {
     const $ = await html(`${base}/player/${id}`);
-    for (const element of $('img').toArray()) {
-      const url = imageCandidate($, element, player);
-      if (!url) continue;
-      player.photoUrl = url;
-      photosFound++;
-      break;
+    const images = $('img').toArray().map(el => {
+      const node = $(el);
+      const alt = clean(node.attr('alt')).toLowerCase();
+      const classes = [node.attr('class'), node.parent().attr('class'), node.closest('.field').attr('class')].join(' ').toLowerCase();
+      const name = clean(player.name).toLowerCase();
+      const rank = (alt.includes(name) && alt.includes('picture') ? 100 : 0) +
+        (alt.includes('picture') && alt.includes(id) ? 90 : 0) +
+        (/user.picture|profile.picture|field--name-user-picture|field-name-field-player-photo/.test(classes) ? 70 : 0);
+      return { rank, sources: imageSources($, el) };
+    }).filter(i => i.rank > 0).sort((a, b) => b.rank - a.rank);
+    for (const candidate of images) {
+      for (const source of candidate.sources) {
+        const url = imageUrl(source);
+        if (!url || placeholder(url)) continue;
+        try {
+          const response = await fetch(url, { headers, signal: AbortSignal.timeout(12000) });
+          if (!response.ok) continue;
+          const mime = (response.headers.get('content-type') || '').split(';')[0].toLowerCase();
+          const extension = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' }[mime];
+          if (!extension) continue;
+          const bytes = Buffer.from(await response.arrayBuffer());
+          if (bytes.length < 500 || bytes.length > 5_000_000) continue;
+          const filename = `${id}.${extension}`;
+          fs.writeFileSync(`public/player-photos/${filename}`, bytes);
+          player.photoUrl = `player-photos/${filename}`;
+          photosFound++;
+          break;
+        } catch (error) {
+          console.warn(`Image fetch failed for ${id}: ${error.message}`);
+        }
+      }
+      if (player.photoUrl) break;
     }
-  } catch (e) {
-    console.warn(`PDGA profile ${id} unavailable: ${e.message}`);
+  } catch (error) {
+    console.warn(`PDGA profile ${id} unavailable: ${error.message}`);
   }
 }
 fs.writeFileSync(file, JSON.stringify(data, null, 2) + '\n');
