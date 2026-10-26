@@ -390,8 +390,10 @@ function App() {
               ))}
             </div>
 
-            <div className="cards">
-              {active.map(d => {
+            {active.map(d => (
+              <section key={d.name} style={{ marginTop: 18, marginBottom: 26 }}>
+                <div style={{ width: '100%' }}>
+              {[d].map(d => {
                 const top = d.players.reduce<Player | null>(
                   (best, p) =>
                     !best || Number(p.highest) > Number(best.highest)
@@ -418,10 +420,12 @@ function App() {
                   </div>
                 );
               })}
-            </div>
 
-            <div className="roster">
-              {players.map((p, i) => (
+                </div>
+                <div className="roster" style={{ marginTop: 12 }}>
+              {d.players.map((player, i) => {
+                const p = { ...player, division: d.name };
+                return (
                 <div
                   className="player"
                   key={`${p.division}-${p.name}-${i}`}
@@ -514,8 +518,11 @@ function App() {
                     </div>
                   )}
                 </div>
-              ))}
-            </div>
+                );
+              })}
+                </div>
+              </section>
+            ))}
           </>
         )}
 
