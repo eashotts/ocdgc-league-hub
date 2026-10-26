@@ -44,7 +44,10 @@ type Finance = {
   }[];
 };
 
+type WeeklyPayout = { week: number; layout: string; place: number; player: string; score: string; payout: number; tieSituation: string; status?: string; };
+
 type League = {
+  weeklyPayouts?: WeeklyPayout[];
   eventId: string;
   leagueName: string;
   updatedAt: string | null;
@@ -131,7 +134,7 @@ function App() {
   const [tab, setTab] = useState('Home');
   const [division, setDivision] = useState('All');
   const [selected, setSelected] = useState<string | null>(null);
-  const [week, setWeek] = useState(0);
+  const [week, setWeek] = useState<number | 'All'>('All');
 
   useEffect(() => {
     fetch(
@@ -167,88 +170,39 @@ function App() {
     0
   );
 
-  function weeklyLeaderboard(short: boolean) {
-    const entries = divisions
-      .filter(d => isShortDivision(d.name) === short)
-      .flatMap(d =>
-        d.players.map(p => ({
-          name: p.name,
-          division: d.name.split(' ')[0],
-          score: p.scores?.[week],
-          pdga: p.pdga
-        }))
-      )
-      .filter(
-        p =>
-          p.score !== undefined &&
-          p.score !== null &&
-          String(p.score).trim() !== '' &&
-          Number.isFinite(Number(p.score))
-      )
-      .sort(
-        (a, b) =>
-          Number(a.score) - Number(b.score) ||
-          a.name.localeCompare(b.name)
-      );
-
+  function weeklyLeaderboard(short: boolean, weekIndex: number) {
+    const layout = short ? 'Shorts' : 'Longs';
+    const records = (data?.weeklyPayouts || [])
+      .filter(p => Number(p.week) === weekIndex + 1 && p.layout === layout)
+      .sort((a, b) => Number(a.place) - Number(b.place));
+    const contribution = data?.finance.weekly?.[weekIndex];
+    const total = contribution ? (short ? contribution.short : contribution.long) : 0;
     return (
-      <div
-        key={short ? 'short' : 'long'}
-        style={{ marginTop: 22 }}
-      >
-        <h3>
-          {short
-            ? 'Shorts · RAG / RAF / RAE'
-            : 'Longs · RAD / RAH / RPA'}
-        </h3>
-
-        <p>
-          <b>
-            {short
-              ? weeklyLayouts[week].short
-              : weeklyLayouts[week].long}
-          </b>
-          {!short && weeklyLayouts[week].hazards
-            ? ' · Sidewalk hazards in effect'
-            : ''}
+      <div key={layout} style={{ marginTop: 22 }}>
+        <div className="between">
+          <h3>{layout} · {short ? 'RAG / RAF / RAE' : 'RAD / RAH / RPA'}</h3>
+          <b>Layout pool: {money(total)}</b>
+        </div>
+        <p><b>{short ? weeklyLayouts[weekIndex].short : weeklyLayouts[weekIndex].long}</b>
+          {!short && weeklyLayouts[weekIndex].hazards ? ' · Sidewalk hazards in effect' : ''}
         </p>
-
-        {entries.length ? (
+        {!Array.isArray(data?.weeklyPayouts) ? (
+          <p className="muted">Awaiting payout history export.</p>
+        ) : records.length ? (
           <div className="overflow">
             <table>
-              <thead>
-                <tr>
-                  <th>Rank</th>
-                  <th>Player</th>
-                  <th>Division</th>
-                  <th>Score</th>
+              <thead><tr><th>Cash place</th><th>Player</th><th>Score</th><th>Cash</th></tr></thead>
+              <tbody>{records.map(p => (
+                <tr key={p.place}>
+                  <td><b>{p.place === 1 ? '1st cash' : '2nd cash'}</b></td>
+                  <td>{p.player || (p.tieSituation?.toLowerCase().includes('playoff') ? 'Awaiting playoff result' : 'Pending')}</td>
+                  <td>{p.player ? (p.score || '—') : '—'}</td>
+                  <td><b>{p.player ? money(Number(p.payout) || 0) : 'Pending'}</b></td>
                 </tr>
-              </thead>
-              <tbody>
-                {entries.map(p => (
-                  <tr key={`${p.division}-${p.name}`}>
-                    <td>
-                      #
-                      {entries.findIndex(
-                        x =>
-                          Number(x.score) === Number(p.score)
-                      ) + 1}
-                    </td>
-                    <td>{p.name}</td>
-                    <td>{p.division}</td>
-                    <td>
-                      <b>{p.score}</b>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+              ))}</tbody>
             </table>
           </div>
-        ) : (
-          <p className="muted">
-            No scores recorded for this layout yet.
-          </p>
-        )}
+        ) : <p className="muted">No payout results recorded yet.</p>}
       </div>
     );
   }
@@ -513,39 +467,22 @@ function App() {
           <>
             <div className="sectionTitle">
               <h2>Weekly Rounds</h2>
-              <span>
-                Independent layout leaderboards
-              </span>
+              <span>Official weekly layout cash winners</span>
             </div>
-
             <div className="pills">
+              <button className={week === 'All' ? 'active' : ''} onClick={() => setWeek('All')}>All</button>
               {weeklyLayouts.map((w, i) => (
-                <button
-                  key={i}
-                  className={week === i ? 'active' : ''}
-                  onClick={() => setWeek(i)}
-                >
-                  W{i + 1}
-                </button>
+                <button key={i} className={week === i ? 'active' : ''} onClick={() => setWeek(i)}>W{i + 1}</button>
               ))}
             </div>
-
-            <section className="card">
-              <h2>
-                Week {week + 1} · {weeklyLayouts[week].date}
-              </h2>
-
-              <p className="muted">
-                Scores from the live standings.
-                Players are ranked by lowest score
-                within their layout; tied scores
-                share a rank. Official payout winners
-                may differ after playoffs.
-              </p>
-
-              {weeklyLeaderboard(true)}
-              {weeklyLeaderboard(false)}
-            </section>
+            {(week === 'All' ? weeklyLayouts.map((_, i) => i) : [week]).map(i => (
+              <section className="card" key={i} style={{ marginTop: 16 }}>
+                <h2>Week {i + 1} · {weeklyLayouts[i].date}</h2>
+                {weeklyLeaderboard(true, i)}
+                {weeklyLeaderboard(false, i)}
+              </section>
+            ))}
+            <p className="muted">Official cash places reflect finalized playoff results from the league payout history. Unresolved playoff positions remain pending.</p>
           </>
         )}
 
@@ -632,11 +569,7 @@ function App() {
               ))}
             </div>
 
-            <p className="muted">
-              Weekly hottest-round winners and amounts
-              will be added after their exact sheet
-              locations are verified.
-            </p>
+
           </>
         )}
 
