@@ -258,7 +258,12 @@ function App() {
       <header>
         <div className="wrap header">
           <div className="brand">
-            <div className="logo">⛳</div>
+            <div className="logo">
+  <img
+    src={`${import.meta.env.BASE_URL}ocdgc-logo.png`}
+    alt="Okaloosa County Disc Golf Club logo"
+  />
+</div>
             <div>
               <strong>OCDGC</strong>
               <small>League Hub</small>
@@ -279,7 +284,8 @@ function App() {
       </header>
 
       <main className="wrap">
-        <section className="hero">
+        {tab === 'Home' && (
+  <section className="hero">
           <span className="eyebrow">
             OKALOOSA COUNTY DISC GOLF CLUB
           </span>
@@ -312,6 +318,7 @@ function App() {
             </div>
           </div>
         </section>
+        )}
 
         {error && <p className="notice">{error}</p>}
 
