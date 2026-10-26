@@ -289,7 +289,7 @@ function App() {
                   ? money(data.finance.acePot)
                   : '—'}
               </b>
-              <small>Ace pot</small>
+              <small>Ace Pot</small>
             </div>
           </div>
         </section>
@@ -467,7 +467,7 @@ function App() {
                     )}
 
                     <span className="playerName">
-                      <b>{p.name}{p.playerRating && <> · <RatingMark value={p.playerRating} /></>}</b>
+                      <b style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}><span>{p.name}</span>{p.pdga && <span style={{ fontSize: 12, fontWeight: 500, color: '#637c7b' }}>#{p.pdga}</span>}{p.playerRating && <RatingMark value={p.playerRating} />}</b>
                       <small>
                         {p.division} · {p.rounds} rounds ·{' '}
                         {p.qualified === 'YES'
@@ -567,14 +567,14 @@ function App() {
 
             <div className="cards">
               <div className="card">
-                <small>Ace pot</small>
+                <small>Ace Pot</small>
                 <h2>
                   {money(data?.finance.acePot || 0)}
                 </h2>
               </div>
 
               <div className="card">
-                <small>Weekly layout payout total</small>
+                <small>Weekly Layout Payouts Total</small>
                 <h2>
                   {money(
                     data?.finance.weeklyLayoutTotal || 0
@@ -583,28 +583,42 @@ function App() {
               </div>
 
               <div className="card">
-                <small>Long layout contributions</small>
+                <small>Long Layout Contributions</small>
                 <h2>
                   {money(data?.finance.longTotal || 0)}
                 </h2>
               </div>
 
               <div className="card">
-                <small>Short layout contributions</small>
+                <small>Short Layout Contributions</small>
                 <h2>
                   {money(data?.finance.shortTotal || 0)}
                 </h2>
               </div>
 
               <div className="card">
-                <small>Division payout pots</small>
+                <small>Division Payouts</small>
                 <h2>
                   {money(data?.finance.divisionTotal || 0)}
                 </h2>
               </div>
             </div>
 
-            <h3>Weekly Contributions</h3>
+            <h3>Division Payouts</h3>
+
+            <div className="card">
+              {data?.finance.divisionPots.map(d => (
+                <div
+                  className="between line"
+                  key={d.division}
+                >
+                  <span>{d.division}</span>
+                  <b>{money(d.amount)}</b>
+                </div>
+              ))}
+            </div>
+
+            <h3>Weekly Layout Payouts</h3>
 
             <div className="card overflow">
               <table>
@@ -628,20 +642,6 @@ function App() {
                   ))}
                 </tbody>
               </table>
-            </div>
-
-            <h3>Division Payout Pots</h3>
-
-            <div className="card">
-              {data?.finance.divisionPots.map(d => (
-                <div
-                  className="between line"
-                  key={d.division}
-                >
-                  <span>{d.division}</span>
-                  <b>{money(d.amount)}</b>
-                </div>
-              ))}
             </div>
 
 
