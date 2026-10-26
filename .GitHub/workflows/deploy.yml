@@ -1,0 +1,60 @@
+
+name: Deploy OCDGC League Hub
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "17 * * * *"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Fetch league data
+        env:
+          EXPORT_URL: ${{ secrets.EXPORT_URL }}
+        run: |
+          if [ -n "$EXPORT_URL" ]; then
+            curl --fail --location --silent --show-error \
+              "$EXPORT_URL" \
+              -o public/data/league.json
+          else
+            echo "No EXPORT_URL configured; using placeholder data."
+          fi
+
+      - name: Validate league data
+        run: node scripts/validate.mjs
+
+      - name: Build website
+        run: npm run build
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
