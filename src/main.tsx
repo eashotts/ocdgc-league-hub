@@ -509,7 +509,7 @@ function App() {
                               const rating = p.roundRatings?.[i];
                               return (
                                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                                  <span>W{i + 1}: {formatScore(score)}</span>
+                                  <span>W{i + 1}: {formatScore(score)} - {((isShortDivision(d.name) ? weeklyLayouts[i]?.short : weeklyLayouts[i]?.long) || 'Layout unavailable').replace(' tees → ', 's to ').replace(' pins', 's')}</span>
                                   <span>{rating ? <RatingMark value={rating} /> : 'Rating pending'}</span>
                                 </div>
                               );
