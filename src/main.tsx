@@ -381,6 +381,36 @@ function App() {
               ))}
             </div>
 
+            <div className="cards">
+              {active.map(d => {
+                const top = d.players.reduce<Player | null>(
+                  (best, p) =>
+                    !best || Number(p.highest) > Number(best.highest)
+                      ? p : best,
+                  null
+                );
+                return (
+                  <div className="card divisionCard" key={d.name}>
+                    <div className="between">
+                      <h3>{d.name}</h3>
+                      <span className="chip">{d.players.length} players</span>
+                    </div>
+                    <div className="between"><span>Division pot</span><b>{d.pot}</b></div>
+                    <div className="between"><span>Projected paid spots</span><b>{d.paidSpots}</b></div>
+                    <div className="between">
+                      <span>Payout qualified</span>
+                      <b>{d.players.filter(p => p.qualified.toUpperCase() === 'YES').length}</b>
+                    </div>
+                    <div className="between">
+                      <span>Highest rated round</span>
+                      <b>{top && Number(top.highest) > 0
+                        ? `${top.highest} · ${top.name}` : '—'}</b>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
             <div className="roster">
               {players.map((p, i) => (
                 <div
