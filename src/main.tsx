@@ -458,7 +458,7 @@ function App() {
 
                     {p.photoUrl && (
                       <img
-                        src={p.photoUrl}
+                        src={p.photoUrl.startsWith("http") ? p.photoUrl : `${import.meta.env.BASE_URL}${p.photoUrl.replace(/^\//, "")}`}
                         alt={`${p.name} profile`}
                         loading="lazy"
                         style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8, flexShrink: 0 }}
