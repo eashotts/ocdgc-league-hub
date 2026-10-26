@@ -26,34 +26,33 @@ let ratingsFound = 0;
 try {
   const $ = await html(`${base}/tour/event/${encodeURIComponent(eventId)}`);
   $('table').each((_, table) => {
-    const head = clean($(table).find('thead').text()).toLowerCase();
-    if (!head.includes('rd1') && !head.includes('rd 1')) return;
+    const headerRows = $(table).find('thead tr').toArray();
+    const headers = headerRows.length
+      ? $(headerRows[headerRows.length - 1]).children('th,td').toArray().map(el => clean($(el).text()))
+      : $(table).find('tr').first().children('th,td').toArray().map(el => clean($(el).text()));
+    const nameCol = headers.findIndex(h => /^name$/i.test(h));
+    const pdgaCol = headers.findIndex(h => /^pdga#?$/i.test(h));
+    const playerRatingCol = headers.findIndex(h => /^rating$/i.test(h));
+    const roundCols = headers.map((h, i) => /^rd\s*(\d+)$/i.test(h) ? [i, Number(h.match(/\d+/)[0])] : null).filter(Boolean);
+    if (nameCol < 0 || !roundCols.length) return;
     $(table).find('tbody tr').each((_, tr) => {
       const cells = $(tr).children('td').toArray().map(td => clean($(td).text()));
-      const row = $(tr);
-      const link = row.find('a[href*="/player/"]').first();
-      const id = (link.attr('href') || '').match(/\/player\/(\d+)/)?.[1];
-      const player = (id && byPdga.get(id)) || byName.get(clean(link.text()).toLowerCase()) ||
-        byName.get(cells.find(c => byName.has(c.toLowerCase()))?.toLowerCase());
+      const anchor = $(tr).find('a[href*="/player/"]').first();
+      const id = (anchor.attr('href') || '').match(/\/player\/(\d+)/)?.[1] || (pdgaCol >= 0 ? cells[pdgaCol] : '');
+      const name = cells[nameCol]?.toLowerCase();
+      const player = byPdga.get(String(id)) || byName.get(name);
       if (!player) return;
-      // The results table stores each round as consecutive score/rating columns.
-      // Anchor the pairs after the player's name and PDGA number, skipping
-      // place, points and current player rating columns.
-      const nameIndex = cells.findIndex(c => c.toLowerCase() === clean(player.name).toLowerCase());
-      if (nameIndex < 0) return;
-      let start = nameIndex + 1;
-      if (digits(player.pdga) && clean(cells[start]) === clean(player.pdga)) start++;
-      // A player's current PDGA rating follows the PDGA number when present.
-      if (start < cells.length && (digits(cells[start]) || cells[start] === '') && cells.length - start >= 3) start++;
-      // Some event tables have a Par column before the round pairs.
-      if (/^[+-]\d+$|^E$/.test(cells[start] || '')) start++;
-      const ratings = Array(10).fill('');
-      for (let week = 0; week < 10; week++) {
-        const score = cells[start + week * 2];
-        const rating = cells[start + week * 2 + 1];
-        if (digits(score) && digits(rating) &&
-            Number(score) === Number(player.scores?.[week])) {
-          ratings[week] = rating;
+      if (playerRatingCol >= 0 && /^\d{3,4}$/.test(cells[playerRatingCol] || '')) {
+        player.playerRating = cells[playerRatingCol];
+      }
+      const ratings = Array.isArray(player.roundRatings) ? [...player.roundRatings] : Array(10).fill('');
+      for (const [col, week] of roundCols) {
+        if (week < 1 || week > 10) continue;
+        const score = cells[col];
+        const rating = cells[col + 1];
+        if (/^\d+$/.test(score || '') && /^\d{3,4}$/.test(rating || '') &&
+            Number(score) === Number(player.scores?.[week - 1])) {
+          ratings[week - 1] = rating;
           ratingsFound++;
         }
       }
@@ -62,7 +61,7 @@ try {
   });
   console.log(`PDGA event ratings matched: ${ratingsFound}`);
 } catch (e) {
-  console.warn('PDGA event ratings unavailable; leaving ratings pending:', e.message);
+  console.warn('PDGA event ratings unavailable:', e.message);
 }
 let photosFound = 0;
 for (const [id, player] of byPdga) {
@@ -70,11 +69,19 @@ for (const [id, player] of byPdga) {
     const $ = await html(`${base}/player/${id}`);
     const candidates = $('img').toArray().filter(el => {
       const alt = clean($(el).attr('alt')).toLowerCase();
-      return alt.includes('picture') && (alt.includes(clean(player.name).toLowerCase()) || alt.includes(id));
+      const src = String($(el).attr('src') || $(el).attr('data-src') || '');
+      const klass = String($(el).attr('class') || '').toLowerCase();
+      return (alt.includes('picture') || klass.includes('user-picture') || src.includes('/pictures/')) &&
+        !/default|placeholder|anonymous|silhouette|no[-_]photo/i.test(src);
     });
     for (const el of candidates) {
-      const url = safeUrl($(el).attr('src') || $(el).attr('data-src') || '');
-      if (!url || /default|placeholder|anonymous|silhouette|no[-_]photo/i.test(url)) continue;
+      const raw = $(el).attr('src') || $(el).attr('data-src') || '';
+      let url = '';
+      try {
+        const parsed = new URL(raw, base);
+        if (parsed.protocol === 'https:') url = parsed.href;
+      } catch {}
+      if (!url) continue;
       player.photoUrl = url;
       photosFound++;
       break;
