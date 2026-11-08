@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
-  Trophy, Wallet, Home, CalendarDays, ExternalLink
+  Trophy, Wallet, Home, CalendarDays, ExternalLink, ClipboardCheck
 } from 'lucide-react';
 import './style.css';
 
@@ -49,7 +49,12 @@ type Finance = {
 
 type WeeklyPayout = { week: number; layout: string; place: number; player: string; score: string; payout: number; tieSituation: string; status?: string; };
 
+type SignIn = { name: string; pdga: string; division: string; timestamp?: string };
+type RollCallData = { week: number; signIns: SignIn[] };
+type CardAssignment = { hole: number; players: SignIn[] };
+
 type League = {
+  rollCall?: RollCallData;
   weeklyPayouts?: WeeklyPayout[];
   eventId: string;
   leagueName: string;
@@ -149,6 +154,62 @@ const money = (n: number) =>
     maximumFractionDigits: 0
   }).format(n);
 
+
+const holes = [1, 3, 6, 8, 15, 17];
+const divisionCode = (value: string) => (value.match(/^(RPA|RAH|RAD|RAE|RAF|RAG)/i)?.[1] || value).toUpperCase();
+const playerKey = (p: SignIn) => p.pdga && p.pdga !== '0' ? 'pdga:' + p.pdga : 'name:' + p.name.trim().toLowerCase();
+const layoutGroup = (p: SignIn) => ['RPA','RAH','RAD'].includes(divisionCode(p.division)) ? 'Longs' : 'Shorts';
+
+function buildCards(people: SignIn[]): { cards: CardAssignment[]; error: string } {
+  const n = people.length;
+  if (!n) return { cards: [], error: 'Confirm attendance to generate cards.' };
+  if (n < 3 || n > 30) return { cards: [], error: `Cannot assign ${n} players to six holes with 3–5 per card (requires 3–30 players).` };
+  const ordered = [...people].sort((a,b) => layoutGroup(a).localeCompare(layoutGroup(b)) || divisionCode(a.division).localeCompare(divisionCode(b.division)) || a.name.localeCompare(b.name));
+  const maxCards = Math.min(6, Math.floor(n / 3));
+  // Prefer more three-player cards; use four/five only when required.
+  let sizes: number[] = [];
+  for (let count = maxCards; count >= Math.ceil(n / 5); count--) {
+    const extra = n - 3 * count;
+    if (extra >= 0 && extra <= 2 * count) {
+      sizes = Array(count).fill(3);
+      for (let i = count - 1, left = extra; i >= 0 && left > 0; i--) {
+        const add = Math.min(2, left);
+        sizes[i] += add;
+        left -= add;
+      }
+      break;
+    }
+  }
+  if (!sizes.length) return { cards: [], error: 'No valid 3–5 player card arrangement.' };
+  // Dynamic programming: minimize mixed layouts first, then mixed divisions.
+  const cost = (group: SignIn[]) => {
+    const layouts = new Set(group.map(layoutGroup)).size;
+    const divisions = new Set(group.map(p => divisionCode(p.division))).size;
+    return (layouts - 1) * 10000 + (divisions - 1) * 100;
+  };
+  const memo = new Map<string, { cost: number; groups: SignIn[][] }>();
+  const solve = (remaining: SignIn[], index: number): { cost: number; groups: SignIn[][] } | null => {
+    if (index === sizes.length) return remaining.length ? null : { cost: 0, groups: [] };
+    const key = index + ':' + remaining.map(playerKey).join('|');
+    if (memo.has(key)) return memo.get(key)!;
+    const size = sizes[index];
+    let best: { cost: number; groups: SignIn[][] } | null = null;
+    // Keep search practical: contiguous sorted blocks, with boundary choices from both ends.
+    for (const fromEnd of [false, true]) {
+      const group = fromEnd ? remaining.slice(-size) : remaining.slice(0,size);
+      const rest = fromEnd ? remaining.slice(0,-size) : remaining.slice(size);
+      const next = solve(rest,index+1);
+      if (!next) continue;
+      const candidate = { cost: cost(group) + next.cost, groups: [group,...next.groups] };
+      if (!best || candidate.cost < best.cost) best = candidate;
+    }
+    if (best) memo.set(key,best);
+    return best;
+  };
+  const solution = solve(ordered,0);
+  return { cards: (solution?.groups || []).map((players,i) => ({ hole: holes[i], players })), error: solution ? '' : 'Unable to generate valid cards.' };
+}
+
 function App() {
   const [data, setData] = useState<League | null>(null);
   const [error, setError] = useState('');
@@ -156,6 +217,10 @@ function App() {
   const [division, setDivision] = useState('All');
   const [selected, setSelected] = useState<string | null>(null);
   const [week, setWeek] = useState<number | 'All'>('All');
+  const [present, setPresent] = useState<string[]>([]);
+  const [cards, setCards] = useState<CardAssignment[]>([]);
+  const [cardError, setCardError] = useState('');
+  const [moveTarget, setMoveTarget] = useState('');
 
   useEffect(() => {
     fetch(
@@ -169,6 +234,27 @@ function App() {
       .catch(e => setError(String(e)));
   }, []);
 
+  const rollCall = data?.rollCall;
+  const signIns = useMemo(() => {
+    const found = new Map<string,SignIn>();
+    for (const p of rollCall?.signIns || []) found.set(playerKey(p),p);
+    return [...found.values()].sort((a,b) => divisionCode(a.division).localeCompare(divisionCode(b.division)) || a.name.localeCompare(b.name));
+  },[rollCall]);
+  const confirmed = signIns.filter(p => present.includes(playerKey(p)));
+  useEffect(() => { setPresent([]); setCards([]); setCardError(''); }, [rollCall?.week, data?.updatedAt]);
+  const generate = () => { const result = buildCards(confirmed); setCards(result.cards); setCardError(result.error); };
+  const movePlayer = (key: string, destination: number) => {
+    const source = cards.find(c => c.players.some(p => playerKey(p) === key));
+    const target = cards.find(c => c.hole === destination);
+    if (!source || !target || source === target) return;
+    if (source.players.length <= 3 || target.players.length >= 5) {
+      setCardError('Move blocked: each active card must contain 3–5 players.');
+      return;
+    }
+    const player = source.players.find(p => playerKey(p) === key)!;
+    setCards(cards.map(c => c.hole === source.hole ? {...c,players:c.players.filter(p => playerKey(p) !== key)} : c.hole === destination ? {...c,players:[...c.players,player]} : c));
+    setCardError('');
+  };
   const divisions = data?.divisions || [];
 
   const active = useMemo(
@@ -591,6 +677,58 @@ function App() {
           </>
         )}
 
+
+        {tab === 'Roll Call' && (
+          <>
+            <div className="sectionTitle"><h2>Roll Call & Card Builder</h2><span>Week {rollCall?.week || '—'} · TD worksheet</span></div>
+            <div className="notice">Public, device-local worksheet: attendance and cards are not shared with other visitors or saved to Google Sheets. Reconfirm attendance after a data refresh. Sign-ins update with the website's scheduled export.</div>
+            {!rollCall ? <p className="notice">Roll Call sign-ins are not connected yet. Add the safe weekly sign-in fields to the Apps Script export.</p> : (
+              <>
+                <div className="card">
+                  <div className="between"><b>Week {rollCall.week} sign-ins</b><b>{confirmed.length} confirmed / {signIns.length} signed in</b></div>
+                  <div className="rollActions">
+                    <button onClick={() => { setPresent(signIns.map(playerKey)); setCards([]); }}>Mark all present</button>
+                    <button onClick={() => { setPresent([]); setCards([]); }}>Clear attendance</button>
+                  </div>
+                  {!signIns.length && <p className="muted">No sign-ins yet for Week {rollCall.week}.</p>}
+                  {['RPA','RAH','RAD','RAE','RAF','RAG'].map(code => {
+                    const group = signIns.filter(p => divisionCode(p.division) === code);
+                    return group.length ? <section key={code} className="rollDivision">
+                      <h3>{code} · {group.filter(p => present.includes(playerKey(p))).length}/{group.length} present · {['RPA','RAH','RAD'].includes(code) ? 'Longs' : 'Shorts'}</h3>
+                      {group.map(p => <label className="rollPlayer" key={playerKey(p)}>
+                        <input type="checkbox" checked={present.includes(playerKey(p))} onChange={e => { setPresent(current => e.target.checked ? [...current,playerKey(p)] : current.filter(k => k !== playerKey(p))); setCards([]); }} />
+                        <span><b>{p.name}</b> {p.pdga && p.pdga !== '0' ? <small>#{p.pdga}</small> : null}</span>
+                      </label>)}
+                    </section> : null;
+                  })}
+                </div>
+                <section className="card" style={{marginTop:18}}>
+                  <h2>Starting Cards</h2>
+                  <p className="muted">Holes 1, 3, 6, 8, 15, 17 · one card per hole · 3–5 players per card, three preferred. Layout separation takes priority over division grouping.</p>
+                  <button className="rollPrimary" onClick={generate}>Generate cards from {confirmed.length} confirmed players</button>
+                  {cardError && <p className="notice">{cardError}</p>}
+                  {cards.length > 0 && <>
+                    <p className="muted">Assignments are local to this browser. Changing attendance clears the cards.</p>
+                    <div className="cards">
+                      {cards.map(card => <div className="card" key={card.hole}>
+                        <h3>Hole {card.hole} · {card.players.length} players</h3>
+                        <p className="muted">{[...new Set(card.players.map(layoutGroup))].join(' / ')}</p>
+                        {card.players.map(p => <div className="rollCardPlayer" key={playerKey(p)}>
+                          <span><b>{p.name}</b><small>{divisionCode(p.division)} · {layoutGroup(p)}</small></span>
+                          <select aria-label={`Move ${p.name} to another hole`} value={moveTarget === playerKey(p) ? '' : String(card.hole)} onChange={e => { setMoveTarget(playerKey(p)); movePlayer(playerKey(p),Number(e.target.value)); }}>
+                            {cards.map(c => <option key={c.hole} value={c.hole}>Hole {c.hole}</option>)}
+                          </select>
+                        </div>)}
+                      </div>)}
+                    </div>
+                    <button style={{marginTop:12}} onClick={() => window.print()}>Print assignments</button>
+                  </>}
+                </section>
+              </>
+            )}
+          </>
+        )}
+
         {tab === 'Finances' && (
           <>
             <h2>League Finances</h2>
@@ -685,6 +823,7 @@ function App() {
           { name: 'Home', icon: Home },
           { name: 'Standings', icon: Trophy },
           { name: 'Rounds', icon: CalendarDays },
+          { name: 'Roll Call', icon: ClipboardCheck },
           { name: 'Finances', icon: Wallet }
         ].map(({ name, icon: Icon }) => (
           <button
