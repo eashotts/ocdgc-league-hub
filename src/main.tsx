@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
-  Trophy, Wallet, Home, CalendarDays, ExternalLink, ClipboardCheck
+  Trophy, Wallet, Home, CalendarDays, ExternalLink, ClipboardCheck, RefreshCw
 } from 'lucide-react';
 import './style.css';
 
@@ -221,6 +221,10 @@ function App() {
   const [cards, setCards] = useState<CardAssignment[]>([]);
   const [cardError, setCardError] = useState('');
   const [moveTarget, setMoveTarget] = useState('');
+  const [liveRoll, setLiveRoll] = useState<RollCallData | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshMessage, setRefreshMessage] = useState('');
+  const [liveUrl, setLiveUrl] = useState(() => localStorage.getItem('ocdgc-rollcall-url') || import.meta.env.VITE_ROLLCALL_URL || '');
 
   useEffect(() => {
     fetch(
@@ -234,14 +238,47 @@ function App() {
       .catch(e => setError(String(e)));
   }, []);
 
-  const rollCall = data?.rollCall;
+  const rollCall = liveRoll || data?.rollCall;
+  const refreshRollCall = () => {
+    if (!liveUrl.trim() || !/^https:\/\/script\.google\.com\/macros\/s\//.test(liveUrl.trim())) {
+      setRefreshMessage('Enter the deployed Apps Script web app URL to enable live refresh.');
+      return;
+    }
+    setRefreshing(true);
+    setRefreshMessage('Checking latest form responses…');
+    const callback = '__ocdgcRollCall_' + Date.now();
+    const script = document.createElement('script');
+    let finished = false;
+    const global = window as unknown as Record<string, unknown>;
+    const cleanup = () => { if (finished) return; finished = true; clearTimeout(timer); script.remove(); delete global[callback]; setRefreshing(false); };
+    const timer = window.setTimeout(() => { cleanup(); setRefreshMessage('Refresh timed out. Check the Apps Script deployment and access settings.'); }, 15000);
+    global[callback] = (payload: RollCallData) => {
+      if (!payload || !Number.isInteger(payload.week) || !Array.isArray(payload.signIns)) {
+        cleanup(); setRefreshMessage('The live endpoint did not return a valid roll call.'); return;
+      }
+      const oldKeys = new Set((liveRoll || data?.rollCall)?.signIns.map(playerKey) || []);
+      const newPlayers = payload.signIns.filter(p => !oldKeys.has(playerKey(p))).length;
+      if (payload.week !== (liveRoll || data?.rollCall)?.week) { setPresent([]); setCards([]); }
+      else if (newPlayers) { setCards([]); }
+      setLiveRoll(payload);
+      cleanup();
+      setRefreshMessage(`Updated Week ${payload.week}: ${payload.signIns.length} sign-ins${newPlayers ? ` · ${newPlayers} new · regenerate cards after confirming attendance` : ' · no new players'}.`);
+    };
+    script.onerror = () => { cleanup(); setRefreshMessage('Live refresh failed. Verify the Apps Script URL and deployment permissions.'); };
+    const url = new URL(liveUrl.trim());
+    url.searchParams.set('view', 'rollcall');
+    url.searchParams.set('callback', callback);
+    url.searchParams.set('_', String(Date.now()));
+    script.src = url.toString();
+    document.head.appendChild(script);
+  };
   const signIns = useMemo(() => {
     const found = new Map<string,SignIn>();
     for (const p of rollCall?.signIns || []) found.set(playerKey(p),p);
     return [...found.values()].sort((a,b) => divisionCode(a.division).localeCompare(divisionCode(b.division)) || a.name.localeCompare(b.name));
   },[rollCall]);
   const confirmed = signIns.filter(p => present.includes(playerKey(p)));
-  useEffect(() => { setPresent([]); setCards([]); setCardError(''); }, [rollCall?.week, data?.updatedAt]);
+  useEffect(() => { setPresent([]); setCards([]); setCardError(''); }, [rollCall?.week]);
   const generate = () => { const result = buildCards(confirmed); setCards(result.cards); setCardError(result.error); };
   const movePlayer = (key: string, destination: number) => {
     const source = cards.find(c => c.players.some(p => playerKey(p) === key));
@@ -681,7 +718,8 @@ function App() {
         {tab === 'Roll Call' && (
           <>
             <div className="sectionTitle"><h2>Roll Call & Card Builder</h2><span>Week {rollCall?.week || '—'} · TD worksheet</span></div>
-            <div className="notice">Public, device-local worksheet: attendance and cards are not shared with other visitors or saved to Google Sheets. Reconfirm attendance after a data refresh. Sign-ins update with the website's scheduled export.</div>
+            <div className="notice">Public, device-local worksheet: attendance and cards are not shared with other visitors or saved to Google Sheets. Live refresh preserves confirmations for existing players. Newly signed-in players require confirmation, and card assignments must be regenerated.</div>
+            <div className="card" style={{marginBottom:14}}><div className="rollActions"><button className="rollPrimary" disabled={refreshing} onClick={refreshRollCall}><RefreshCw size={16} style={{verticalAlign:'middle'}} /> {refreshing ? 'Refreshing…' : 'Refresh sign-ins now'}</button></div><details><summary>Live connection settings</summary><p className="muted">Paste the Apps Script web app deployment URL (ending in /exec). Stored only in this browser; never enter the export token.</p><input style={{width:'100%',padding:10}} aria-label="Apps Script web app URL" placeholder="https://script.google.com/macros/s/.../exec" value={liveUrl} onChange={e => { setLiveUrl(e.target.value); localStorage.setItem('ocdgc-rollcall-url',e.target.value); }} /></details>{refreshMessage && <p role="status" className="muted">{refreshMessage}</p>}</div>
             {!rollCall ? <p className="notice">Roll Call sign-ins are not connected yet. Add the safe weekly sign-in fields to the Apps Script export.</p> : (
               <>
                 <div className="card">
