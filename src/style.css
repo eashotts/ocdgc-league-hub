@@ -84,3 +84,18 @@ tbody tr:hover { background: #e7f5f2; }
 .bottomNav button.active { color: #087e91; }
 .place { color: #087e91; }
 .pills button.active { background: #087e91; color: #fff; border-color: #087e91; }
+
+/* Roll Call / card builder */
+.rollActions { display:flex; gap:10px; flex-wrap:wrap; margin:14px 0; }
+.rollActions button, .rollPrimary, .rollCardPlayer select { border:1px solid #90c8c4; background:#e7f6f3; border-radius:9px; padding:9px 12px; color:#145a60; font-weight:700; }
+.rollPrimary { background:#087e91; color:white; margin:10px 0 16px; }
+.rollDivision { border-top:1px solid var(--line); margin-top:14px; padding-top:12px; }
+.rollDivision h3 { font-size:16px; }
+.rollPlayer { display:flex; align-items:center; gap:12px; padding:10px 6px; border-bottom:1px solid #e1efeb; cursor:pointer; }
+.rollPlayer input { width:21px; height:21px; accent-color:#087e91; }
+.rollPlayer small { color:var(--muted); }
+.rollCardPlayer { display:flex; justify-content:space-between; align-items:center; gap:8px; border-top:1px solid var(--line); padding:10px 0; }
+.rollCardPlayer span { min-width:0; }
+.rollCardPlayer small { display:block; color:var(--muted); }
+.rollCardPlayer select { max-width:112px; font-size:12px; }
+@media print { header,.bottomNav,.rollActions,.rollPrimary,.rollCardPlayer select { display:none!important; } .card { break-inside:avoid; box-shadow:none; } }
