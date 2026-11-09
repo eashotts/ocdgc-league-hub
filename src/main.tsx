@@ -210,8 +210,29 @@ function buildCards(people: SignIn[]): { cards: CardAssignment[]; error: string 
   return { cards: (solution?.groups || []).map((players,i) => ({ hole: holes[i], players })), error: solution ? '' : 'Unable to generate valid cards.' };
 }
 
+
+// League weeks advance Sundays at 6:00 PM America/Chicago.
+// Dates match the published schedule, including the October break.
+const cutoffDates = ['2026-09-06','2026-09-13','2026-09-20','2026-09-27','2026-10-18','2026-10-25','2026-11-01','2026-11-08','2026-11-15','2026-11-22'];
+function scheduledRollWeek(now: Date): number {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Chicago', year:'numeric', month:'2-digit', day:'2-digit',
+    hour:'2-digit', minute:'2-digit', hourCycle:'h23'
+  }).formatToParts(now);
+  const get = (name:string) => parts.find(p => p.type === name)?.value || '';
+  const date = `${get('year')}-${get('month')}-${get('day')}`;
+  const time = Number(get('hour')) * 60 + Number(get('minute'));
+  for (let i=0; i<cutoffDates.length; i++) {
+    if (date < cutoffDates[i] || (date === cutoffDates[i] && time < 18*60)) return i+1;
+  }
+  return 0; // Season complete.
+}
+
 function App() {
   const [data, setData] = useState<League | null>(null);
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => { const id = window.setInterval(() => setNow(new Date()), 30000); return () => clearInterval(id); }, []);
+  const scheduledWeek = scheduledRollWeek(now);
   const [error, setError] = useState('');
   const [tab, setTab] = useState('Home');
   const [division, setDivision] = useState('All');
@@ -238,7 +259,8 @@ function App() {
       .catch(e => setError(String(e)));
   }, []);
 
-  const rollCall = liveRoll || data?.rollCall;
+  const sourceRoll = liveRoll || data?.rollCall;
+  const rollCall: RollCallData | null = scheduledWeek ? {week:scheduledWeek,signIns:sourceRoll?.week === scheduledWeek ? sourceRoll.signIns : []} : null;
   const refreshRollCall = () => {
     if (!liveUrl.trim() || !/^https:\/\/script\.google\.com\/macros\/s\//.test(liveUrl.trim())) {
       setRefreshMessage('Enter the deployed Apps Script web app URL to enable live refresh.');
@@ -256,13 +278,12 @@ function App() {
       if (!payload || !Number.isInteger(payload.week) || !Array.isArray(payload.signIns)) {
         cleanup(); setRefreshMessage('The live endpoint did not return a valid roll call.'); return;
       }
-      const oldKeys = new Set((liveRoll || data?.rollCall)?.signIns.map(playerKey) || []);
+      const oldKeys = new Set(rollCall?.signIns.map(playerKey) || []);
       const newPlayers = payload.signIns.filter(p => !oldKeys.has(playerKey(p))).length;
-      if (payload.week !== (liveRoll || data?.rollCall)?.week) { setPresent([]); setCards([]); }
-      else if (newPlayers) { setCards([]); }
+      if (payload.week === scheduledWeek && newPlayers) { setCards([]); }
       setLiveRoll(payload);
       cleanup();
-      setRefreshMessage(`Updated Week ${payload.week}: ${payload.signIns.length} sign-ins${newPlayers ? ` · ${newPlayers} new · regenerate cards after confirming attendance` : ' · no new players'}.`);
+      setRefreshMessage(payload.week !== scheduledWeek ? `Week ${scheduledWeek || 'season complete'} is active, but the live export still returns Week ${payload.week}. Create the Week ${scheduledWeek} response tab in Google Sheets to begin collecting the new week's sign-ins.` : `Updated Week ${payload.week}: ${payload.signIns.length} sign-ins${newPlayers ? ` · ${newPlayers} new · regenerate cards after confirming attendance` : ' · no new players'}.`);
     };
     script.onerror = () => { cleanup(); setRefreshMessage('Live refresh failed. Verify the Apps Script URL and deployment permissions.'); };
     const url = new URL(liveUrl.trim());
@@ -278,7 +299,7 @@ function App() {
     return [...found.values()].sort((a,b) => divisionCode(a.division).localeCompare(divisionCode(b.division)) || a.name.localeCompare(b.name));
   },[rollCall]);
   const confirmed = signIns.filter(p => present.includes(playerKey(p)));
-  useEffect(() => { setPresent([]); setCards([]); setCardError(''); }, [rollCall?.week]);
+  useEffect(() => { setPresent([]); setCards([]); setCardError(''); setRefreshMessage(''); }, [scheduledWeek]);
   const generate = () => { const result = buildCards(confirmed); setCards(result.cards); setCardError(result.error); };
   const movePlayer = (key: string, destination: number) => {
     const source = cards.find(c => c.players.some(p => playerKey(p) === key));
@@ -717,10 +738,10 @@ function App() {
 
         {tab === 'Roll Call' && (
           <>
-            <div className="sectionTitle"><h2>Roll Call & Card Builder</h2><span>Week {rollCall?.week || '—'} · TD worksheet</span></div>
+            <div className="sectionTitle"><h2>Roll Call & Card Builder</h2><span>{scheduledWeek ? `Week ${scheduledWeek} · ${weeklyLayouts[scheduledWeek-1]?.date} · TD worksheet` : 'Season complete'}</span></div>
             <div className="notice">Public, device-local worksheet: attendance and cards are not shared with other visitors or saved to Google Sheets. Live refresh preserves confirmations for existing players. Newly signed-in players require confirmation, and card assignments must be regenerated.</div>
             <div className="card" style={{marginBottom:14}}><div className="rollActions"><button className="rollPrimary" disabled={refreshing} onClick={refreshRollCall}><RefreshCw size={16} style={{verticalAlign:'middle'}} /> {refreshing ? 'Refreshing…' : 'Refresh sign-ins now'}</button></div>{refreshMessage && <p role="status" className="muted">{refreshMessage}</p>}</div>
-            {!rollCall ? <p className="notice">Roll Call sign-ins are not connected yet. Add the safe weekly sign-in fields to the Apps Script export.</p> : (
+            {!scheduledWeek ? <p className="notice">The 10-week season is complete. No further league sign-ins are scheduled.</p> : (
               <>
                 <div className="card">
                   <div className="between"><b>Week {rollCall.week} sign-ins</b><b>{confirmed.length} confirmed / {signIns.length} signed in</b></div>
@@ -728,7 +749,7 @@ function App() {
                     <button onClick={() => { setPresent(signIns.map(playerKey)); setCards([]); }}>Mark all present</button>
                     <button onClick={() => { setPresent([]); setCards([]); }}>Clear attendance</button>
                   </div>
-                  {!signIns.length && <p className="muted">No sign-ins yet for Week {rollCall.week}.</p>}
+                  {!signIns.length && <p className="muted">No sign-ins yet for Week {rollCall!.week}. {sourceRoll?.week !== scheduledWeek ? `The export currently provides Week ${sourceRoll?.week || '—'}; ensure the Week ${scheduledWeek} response tab exists.` : ''}</p>}
                   {['RPA','RAH','RAD','RAE','RAF','RAG'].map(code => {
                     const group = signIns.filter(p => divisionCode(p.division) === code);
                     return group.length ? <section key={code} className="rollDivision">
