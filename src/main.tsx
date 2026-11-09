@@ -744,7 +744,7 @@ function App() {
             {!scheduledWeek ? <p className="notice">The 10-week season is complete. No further league sign-ins are scheduled.</p> : (
               <>
                 <div className="card">
-                  <div className="between"><b>Week {rollCall.week} sign-ins</b><b>{confirmed.length} confirmed / {signIns.length} signed in</b></div>
+                  <div className="between"><b>Week {rollCall!.week} sign-ins</b><b>{confirmed.length} confirmed / {signIns.length} signed in</b></div>
                   <div className="rollActions">
                     <button onClick={() => { setPresent(signIns.map(playerKey)); setCards([]); }}>Mark all present</button>
                     <button onClick={() => { setPresent([]); setCards([]); }}>Clear attendance</button>
