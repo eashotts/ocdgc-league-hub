@@ -424,8 +424,8 @@ function App() {
               <small>Players</small>
             </div>
             <div>
-              <b>{divisions.length || '—'}</b>
-              <small>Divisions</small>
+              <b>{data ? money((data.finance.divisionTotal || 0) + (data.finance.weeklyLayoutTotal || 0)) : '—'}</b>
+              <small>Total Projected Payouts</small>
             </div>
             <div>
               <b>
@@ -558,10 +558,10 @@ function App() {
           </section>
         )}
 
-        {tab === 'Standings' && (
+        {tab === 'Division Standings' && (
           <>
             <div className="sectionTitle">
-              <h2>Standings</h2>
+              <h2>Division Standings</h2>
               <span>Tap a player for weekly scores</span>
             </div>
 
@@ -712,10 +712,10 @@ function App() {
           </>
         )}
 
-        {tab === 'Rounds' && (
+        {tab === 'Weekly Payouts' && (
           <>
             <div className="sectionTitle">
-              <h2>Weekly Rounds</h2>
+              <h2>Weekly Payouts</h2>
               <span>Official weekly layout cash winners</span>
             </div>
             <div className="pills">
@@ -880,8 +880,8 @@ function App() {
       <nav className="bottomNav">
         {[
           { name: 'Home', icon: Home },
-          { name: 'Standings', icon: Trophy },
-          { name: 'Rounds', icon: CalendarDays },
+          { name: 'Division Standings', icon: Trophy },
+          { name: 'Weekly Payouts', icon: CalendarDays },
           { name: 'Roll Call', icon: ClipboardCheck },
           { name: 'Finances', icon: Wallet }
         ].map(({ name, icon: Icon }) => (
