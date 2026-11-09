@@ -224,7 +224,7 @@ function App() {
   const [liveRoll, setLiveRoll] = useState<RollCallData | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMessage, setRefreshMessage] = useState('');
-  const [liveUrl, setLiveUrl] = useState(() => localStorage.getItem('ocdgc-rollcall-url') || import.meta.env.VITE_ROLLCALL_URL || '');
+  const liveUrl = 'https://script.google.com/macros/s/AKfycbzDs9yaiJNRqcofHtUlSi20WlgXC2CusQ3WKtRF-6Tg8XKFaux4sBchn3KQI8mS29N1rg/exec';
 
   useEffect(() => {
     fetch(
@@ -719,7 +719,7 @@ function App() {
           <>
             <div className="sectionTitle"><h2>Roll Call & Card Builder</h2><span>Week {rollCall?.week || '—'} · TD worksheet</span></div>
             <div className="notice">Public, device-local worksheet: attendance and cards are not shared with other visitors or saved to Google Sheets. Live refresh preserves confirmations for existing players. Newly signed-in players require confirmation, and card assignments must be regenerated.</div>
-            <div className="card" style={{marginBottom:14}}><div className="rollActions"><button className="rollPrimary" disabled={refreshing} onClick={refreshRollCall}><RefreshCw size={16} style={{verticalAlign:'middle'}} /> {refreshing ? 'Refreshing…' : 'Refresh sign-ins now'}</button></div><details><summary>Live connection settings</summary><p className="muted">Paste the Apps Script web app deployment URL (ending in /exec). Stored only in this browser; never enter the export token.</p><input style={{width:'100%',padding:10}} aria-label="Apps Script web app URL" placeholder="https://script.google.com/macros/s/.../exec" value={liveUrl} onChange={e => { setLiveUrl(e.target.value); localStorage.setItem('ocdgc-rollcall-url',e.target.value); }} /></details>{refreshMessage && <p role="status" className="muted">{refreshMessage}</p>}</div>
+            <div className="card" style={{marginBottom:14}}><div className="rollActions"><button className="rollPrimary" disabled={refreshing} onClick={refreshRollCall}><RefreshCw size={16} style={{verticalAlign:'middle'}} /> {refreshing ? 'Refreshing…' : 'Refresh sign-ins now'}</button></div>{refreshMessage && <p role="status" className="muted">{refreshMessage}</p>}</div>
             {!rollCall ? <p className="notice">Roll Call sign-ins are not connected yet. Add the safe weekly sign-in fields to the Apps Script export.</p> : (
               <>
                 <div className="card">
